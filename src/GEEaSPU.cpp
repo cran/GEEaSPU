@@ -327,15 +327,15 @@ List perm(arma::mat invR, arma::mat G, arma::mat res, int n, int k, int p, arma:
     arma::vec Pspu(npo * npo2); 
     arma::vec minp0(nperm);
     for (int j = 0; j < T0s.n_cols; j++) {
-        Pspu(j) = count_if(std::abs(spu(j)) <= abs(T0s.col(j)))/nperm;
-    	arma::vec P0s = (nperm + 1 - rankC(as<NumericVector>(wrap(abs(T0s.col(j))))))/nperm;
+      Pspu(j) = (1+count_if(std::abs(spu(j)) < abs(T0s.col(j))))/(nperm+1);
+      arma::vec P0s = (nperm + 1 - rankC(as<NumericVector>(wrap(abs(T0s.col(j))))))/nperm;
         if (j==0){
             minp0 = P0s;
         } else {
             minp0(find(minp0 > P0s)) = P0s(find(minp0 > P0s));
         }
 	}
-    double PaSPU = (1+count_if(minp0 <= Pspu.min()))/(nperm+1);
+    double PaSPU = (1+count_if(minp0 < Pspu.min()))/(nperm+1);
     List A ;
     A["P_SPU"] = Pspu;
     A["P_aSPU"] = PaSPU;
@@ -374,18 +374,18 @@ List perm_score(arma::mat invR, arma::mat G, arma::mat x, arma::mat res, arma::m
     arma::vec Pspu(npo * npo2+1); 
     arma::vec minp0(nperm);
     for (int j = 0; j < npo * npo2+1; j++) {
-        Pspu(j) = count_if(std::abs(spu_score(0,j)) <= abs(T0s.col(j)))/nperm;
+        Pspu(j) = (1+count_if(std::abs(spu_score(0,j)) < abs(T0s.col(j))))/(nperm+1);
     	arma::vec P0s = (nperm +1 - rankC(as<NumericVector>(wrap(abs(T0s.col(j))))))/nperm;
         if (j==0){
             minp0 = P0s;
         } else {
             minp0(find(minp0 > P0s)) = P0s(find(minp0 > P0s));
             if (j==npo * npo2-1){
-            	PaSPU = (1+count_if(minp0 <= min(Pspu.subvec(0, npo * npo2-1))))/(nperm+1);
+            	PaSPU = (1+count_if(minp0 < min(Pspu.subvec(0, npo * npo2-1))))/(nperm+1);
             }
         }
 	}
-    double PaSPU_score = (1+count_if(minp0 <= Pspu.min()))/(nperm+1);
+    double PaSPU_score = (1+count_if(minp0 < Pspu.min()))/(nperm+1);
     List A ;
     A["P_SPU"] = Pspu;
     A["P_aSPU"] = PaSPU;
@@ -403,51 +403,47 @@ List perm_score(arma::mat invR, arma::mat G, arma::mat x, arma::mat res, arma::m
 
 
 
-
-
-
 // [[Rcpp::export]]
 List permhigh(arma::mat invR, arma::mat G, arma::mat res, int n, int k, int p, arma::mat po, arma::mat po2, int nperm) {
     
-	const int npo = po.n_rows;
-    const int npo2 = po2.n_rows;
-    arma::mat U = gauss_score(invR, G, res, n, k, p);
-    arma::mat spu = rcpp_spuval(U, po, po2, p, k);
-    arma::vec Pspu(npo*npo2);
-    arma::vec minp0(nperm);
-    int temp = 0;
+  const int npo = po.n_rows;
+  const int npo2 = po2.n_rows;
+  arma::mat U = gauss_score(invR, G, res, n, k, p);
+  arma::mat spu = rcpp_spuval(U, po, po2, p, k);
+  arma::vec Pspu(npo*npo2);
+  arma::vec minp0(nperm);
+  minp0.fill(0);
+  int temp = 0;
 
     for (int q = 0; q < npo; q++){
-        double w = po(q,0);
         for (int q2 = 0; q2 < npo2; q2++){	
-            double w2 = po2(q2,0);
             arma::vec T0s(nperm);
             T0s.fill(0);
 
-            arma::arma_rng::set_seed(1234); 
+            //arma::arma_rng::set_seed(1234); 
             for (int i = 0; i < nperm; i++) {
                 arma::vec Ts(k);
                 arma::mat U0 = gauss_score(invR, G, shuffle(res, 0), n, k, p);
                 arma::mat U1 = a8(U0, p, k);
-                if (w == 0) {
+                if (po(q,0) == 0) {
                     Ts = InfU(U1);
                 } else {
-                    Ts = rcpp_standPow(U1, w);
+                    Ts = rcpp_standPow(U1, po(q,0));
                 }
-                if (w2 == 0) {
-                    T0s(i) = max(abs(Ts));
+                if (po2(q2,0) == 0) {
+                    T0s(i) = abs(Ts).max();
                 } else {
-                    T0s(i) = accu(pow(Ts, w2)); 
+                    T0s(i) = accu(pow(Ts, po2(q2,0))); 
                 }
             }
-            Pspu(temp) = count_if(std::abs(spu(temp)) <= abs(T0s))/nperm;
+            Pspu(temp) = (1+count_if(std::abs(spu(temp)) < abs(T0s)))/(nperm+1);
             arma::vec P0s = (nperm + 1 - rankC(as<NumericVector>(wrap(abs(T0s)))))/nperm;
             if (temp==0){
                 minp0 = P0s;
             } else {
                 minp0(find(minp0 > P0s)) = P0s(find(minp0 > P0s));
             }
-            temp++  ;  
+            temp++  ;
         }
     }
     double PaSPU = (1+count_if(minp0 < Pspu.min()))/(nperm+1);
@@ -484,7 +480,7 @@ List permhigh_score(arma::mat invR, arma::mat G, arma::mat x, arma::mat res, arm
             arma::vec T0s(nperm);
             T0s.fill(0);
 
-            arma::arma_rng::set_seed(1234); 
+            //arma::arma_rng::set_seed(1234); 
             for (int i = 0; i < nperm; i++) {
                 arma::vec Ts(k);
                 arma::mat U0 = gauss_score(invR, G, shuffle(res, 0), n, k, p);
@@ -500,7 +496,7 @@ List permhigh_score(arma::mat invR, arma::mat G, arma::mat x, arma::mat res, arm
                     T0s(i) = accu(pow(Ts, w2)); 
                 }
             }
-            Pspu(temp) = count_if(std::abs(spu_score(temp)) <= abs(T0s))/nperm;
+            Pspu(temp) = (1+count_if(std::abs(spu_score(temp)) < abs(T0s)))/(nperm+1);
             arma::vec P0s = (nperm + 1 - rankC(as<NumericVector>(wrap(abs(T0s)))))/nperm;
             if (temp==0){
                 minp0 = P0s;
@@ -510,20 +506,20 @@ List permhigh_score(arma::mat invR, arma::mat G, arma::mat x, arma::mat res, arm
             temp++  ;  
         }
     }
-    double PaSPU = (1+count_if(minp0 <= min(Pspu.subvec(0, npo * npo2-1))))/(nperm+1);
+    double PaSPU = (1+count_if(minp0 < min(Pspu.subvec(0, npo * npo2-1))))/(nperm+1);
     arma::vec T0s(nperm);
     T0s.fill(0);
-    arma::arma_rng::set_seed(1234); 
+    //arma::arma_rng::set_seed(1234); 
     for (int i = 0; i < nperm; i++) {
 	    arma::mat U0 = gauss_score(invR, G, shuffle(res, 0), n, k, p);
 	    T0s(i) =  as<double>(wrap(U0 * psigma *  U0.t()));
     }
 	
-	Pspu(temp) = count_if(std::abs(spu_score(temp)) <= abs(T0s))/nperm;
+	Pspu(temp) = (1+count_if(std::abs(spu_score(temp)) < abs(T0s)))/(nperm+1);
 	arma::vec P0s = (nperm +1- rankC(as<NumericVector>(wrap(abs(T0s)))))/nperm;
 	minp0(find(minp0 > P0s)) = P0s(find(minp0 > P0s));
 	
-    double PaSPU_score = (1+count_if(minp0 <= Pspu.min()))/(nperm+1);
+    double PaSPU_score = (1+count_if(minp0 < Pspu.min()))/(nperm+1);
     List A ;
     A["P_SPU"] = Pspu;
     A["P_aSPU"] = PaSPU;
@@ -563,7 +559,7 @@ List sim(int f, arma::vec va, arma::mat invR, arma::mat G, arma::mat x, arma::ma
     arma::vec Pspu(npo * npo2); 
     arma::vec minp0(nsim);
     for (int j = 0; j < T0s.n_cols; j++) {
-        Pspu(j) = count_if(std::abs(spu(j)) <= abs(T0s.col(j)))/nsim;
+        Pspu(j) = (1+count_if(std::abs(spu(j)) < abs(T0s.col(j))))/(nsim+1);
     	arma::vec P0s = (nsim +1- rankC(as<NumericVector>(wrap(abs(T0s.col(j))))))/nsim;
         if (j==0){
             minp0 = P0s;
@@ -571,7 +567,7 @@ List sim(int f, arma::vec va, arma::mat invR, arma::mat G, arma::mat x, arma::ma
             minp0(find(minp0 > P0s)) = P0s(find(minp0 > P0s));
         }
 	}
-    double PaSPU = (1+count_if(minp0 <= Pspu.min()))/(nsim+1);
+    double PaSPU = (1+count_if(minp0 < Pspu.min()))/(nsim+1);
     List A ;
     A["P_SPU"] = Pspu;
     A["P_aSPU"] = PaSPU;
@@ -619,7 +615,7 @@ List sim_score(int f, arma::vec va, arma::mat invR, arma::mat G, arma::mat x, ar
     arma::vec Pspu(npo * npo2+1); 
     arma::vec minp0(nsim);
     for (int j = 0; j < npo * npo2+1; j++) {
-        Pspu(j) = count_if(std::abs(spu_score(0,j)) <= abs(T0s.col(j)))/nsim;
+        Pspu(j) = (1+count_if(std::abs(spu_score(0,j)) < abs(T0s.col(j))))/(nsim+1);
     	arma::vec P0s = (nsim +1- rankC(as<NumericVector>(wrap(abs(T0s.col(j))))))/nsim;
         if (j==0){
             minp0 = P0s;
@@ -672,7 +668,7 @@ List simhigh(int f, arma::vec va, arma::mat invR, arma::mat G, arma::mat x, arma
             arma::vec T0s(nperm);
             T0s.fill(0);
 
-            arma::arma_rng::set_seed(1234); 
+            //arma::arma_rng::set_seed(1234); 
             for (int i = 0; i < nperm; i++) {
                 arma::vec Ts(k);
                 arma::mat Y = arma::randn(1, p*k);
@@ -689,7 +685,7 @@ List simhigh(int f, arma::vec va, arma::mat invR, arma::mat G, arma::mat x, arma
                     T0s(i) = accu(pow(Ts, w2)); 
                 }
             }
-            Pspu(temp) = count_if(std::abs(spu(temp)) <= abs(T0s))/nperm;
+            Pspu(temp) = (1+count_if(std::abs(spu(temp)) < abs(T0s)))/(nperm+1);
             arma::vec P0s = (nperm +1- rankC(as<NumericVector>(wrap(abs(T0s)))))/nperm;
             if (temp==0){
                 minp0 = P0s;
@@ -760,8 +756,8 @@ List simhigh_score(int f, arma::vec va, arma::mat invR, arma::mat G, arma::mat x
                     T0s(i) = accu(pow(Ts, w2)); 
                 }
             }
-            Pspu(temp) = count_if(std::abs(spu_score(temp)) <= abs(T0s))/nperm;
-            arma::vec P0s = (nperm - rankC(as<NumericVector>(wrap(abs(T0s)))))/(nperm-1);
+            Pspu(temp) = (1+count_if(std::abs(spu_score(temp)) < abs(T0s)))/(nperm+1);
+            arma::vec P0s = (nperm +1- rankC(as<NumericVector>(wrap(abs(T0s)))))/nperm;
             if (temp==0){
                 minp0 = P0s;
             } else {
@@ -770,7 +766,7 @@ List simhigh_score(int f, arma::vec va, arma::mat invR, arma::mat G, arma::mat x
             temp++  ;  
         }
     }
-    double PaSPU = (1+count_if(minp0 <= min(Pspu.subvec(0, npo * npo2-1))))/(nperm+1);
+    double PaSPU = (1+count_if(minp0 < min(Pspu.subvec(0, npo * npo2-1))))/(nperm+1);
     arma::vec T0s(nperm);
     T0s.fill(0);
     //arma::arma_rng::set_seed(1234); 
@@ -780,11 +776,11 @@ List simhigh_score(int f, arma::vec va, arma::mat invR, arma::mat G, arma::mat x
 	    T0s(i) =  as<double>(wrap(U0.t() * psigma *  U0));
     }
 
-	Pspu(temp) = count_if(std::abs(spu_score(temp)) <= abs(T0s))/nperm;
+	Pspu(temp) = (1+count_if(std::abs(spu_score(temp)) < abs(T0s)))/(nperm+1);
 	arma::vec P0s = (nperm +1- rankC(as<NumericVector>(wrap(abs(T0s)))))/nperm;
 	minp0(find(minp0 > P0s)) = P0s(find(minp0 > P0s));
 	
-    double PaSPU_score = (1 + count_if(minp0 <= Pspu.min()))/(nperm+1);
+    double PaSPU_score = (1 + count_if(minp0 < Pspu.min()))/(nperm+1);
     List A ;
     A["P_SPU"] = Pspu;
     A["P_aSPU"] = PaSPU;
@@ -884,7 +880,7 @@ List permpath(arma::mat invR, arma::mat G, arma::mat res, arma::vec nSNPs, int n
     arma::vec Pspu(npo * npo2* npo3); 
     arma::vec minp0(nperm);
     for (int j = 0; j < T0s.n_cols; j++) {
-        Pspu(j) = count_if(std::abs(spu(j)) <= abs(T0s.col(j)))/nperm;
+        Pspu(j) = (1+count_if(std::abs(spu(j)) < abs(T0s.col(j))))/(nperm+1);
     	arma::vec P0s = (nperm +1- rankC(as<NumericVector>(wrap(abs(T0s.col(j))))))/nperm;
         if (j==0){
             minp0 = P0s;
@@ -892,7 +888,7 @@ List permpath(arma::mat invR, arma::mat G, arma::mat res, arma::vec nSNPs, int n
             minp0(find(minp0 > P0s)) = P0s(find(minp0 > P0s));
         }
 	}
-    double PaSPUpath = (1+count_if(minp0 <= Pspu.min()))/(nperm+1);
+    double PaSPUpath = (1+count_if(minp0 < Pspu.min()))/(nperm+1);
     List A ;
     A["P_SPU"] = Pspu;
     A["P_aSPUpath"] = PaSPUpath;

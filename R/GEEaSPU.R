@@ -206,11 +206,11 @@ GEEaSPUset <-function(pheno, geno, Z = NULL, model = "gaussian", corstr = "indep
 	if (score.test == TRUE){
 		pvs <- c(fit$P_SPU, fit$P_aSPU, fit$P_aSPU.score)
 		pvs[pvs==0] <- 1/n.perm
-		names(pvs) <- c(sapply(pow, function(z) paste("SPU", z, pow2, sep = ".")), "Score", "aSPU", "aSPU_score")
+		names(pvs) <- c(sapply(pow, function(z) paste("SPU", z, pow2, sep = ".")), "Score", "aSPUset", "aSPUset_score")
 	} else {
 		pvs <- c(fit$P_SPU, fit$P_aSPU)
 		pvs[pvs==0] <- 1/n.perm
-		names(pvs) <- c(sapply(pow, function(z) paste("SPU", z, pow2, sep = ".")), "aSPU")
+		names(pvs) <- c(sapply(pow, function(z) paste("SPU", z, pow2, sep = ".")), "aSPUset")
 	}
 	return(pvs)
 
